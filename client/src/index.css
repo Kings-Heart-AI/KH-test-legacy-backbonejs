@@ -178,7 +178,7 @@ a.plain:visited {
 
 .home-hero {
     color: #fff;
-    background-image: url('/img/bg.jpg');
+    background-image: url('/css/img/bg.jpg');
     background-size: cover;
     background-repeat: no-repeat;
     padding: 100px 40px;

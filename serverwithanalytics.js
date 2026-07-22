@@ -11,6 +11,8 @@ app.set('port', process.env.PORT || 3000);
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'client', 'dist')));
+// Fallback for the pre-existing /pics, /img and /css assets the React app still links to directly.
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/wines', wine.findAll);
 app.get('/wines/:id', wine.findById);
