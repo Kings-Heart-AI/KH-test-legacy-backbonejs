@@ -120,7 +120,7 @@ exports.updateWine = async function (req, res) {
         return res.status(404).send({error: 'Wine not found'});
     }
     try {
-        var result = await getCollection().updateOne({'_id': objectId}, {$set: wine});
+        var result = await getCollection().replaceOne({'_id': objectId}, wine);
         if (result.matchedCount === 0) {
             return res.status(404).send({error: 'Wine not found'});
         }
