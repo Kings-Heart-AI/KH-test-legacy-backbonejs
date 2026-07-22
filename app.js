@@ -5,7 +5,9 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     mongoose = require('mongoose'),
     socketio = require('socket.io'),
-    wine = require('./routes/wines');
+    wine = require('./routes/wines'),
+    Wine = require('./models/wine'),
+    sampleWines = require('./data/sample-wines');
 
 var app = express();
 
@@ -27,6 +29,17 @@ mongoose.connection.on('error', function (err) {
 });
 mongoose.connection.once('open', function () {
     console.log("Connected to '" + mongoose.connection.name + "' database");
+    // Mirrors the old raw-driver populateDB() behaviour: seed sample data
+    // the first time the 'wines' collection is empty (e.g. a fresh local
+    // Mongo or a freshly-provisioned MongoLab database).
+    Wine.estimatedDocumentCount().then(function (count) {
+        if (count === 0) {
+            console.log("The 'wines' collection is empty. Seeding it with sample data...");
+            return Wine.insertMany(sampleWines);
+        }
+    }).catch(function (err) {
+        console.error('Error seeding sample wine data: ' + err);
+    });
 });
 
 app.get('/wines', wine.findAll);
@@ -45,12 +58,20 @@ var server = http.createServer(app);
 
 // socket.io 4.x wiring, attached to the Express 4 http.Server instance.
 // allowRequest re-implements the old io.set('authorization', ...) cross-domain
-// rejection: reject handshakes whose Origin header doesn't match this host.
+// rejection: reject handshakes whose Origin doesn't exactly match this host.
 var io = socketio(server, {
     allowRequest: function (req, callback) {
         var origin = req.headers.origin;
-        if (origin && req.headers.host && origin.indexOf(req.headers.host) === -1) {
-            return callback('Cross-domain connections are not allowed', false);
+        if (origin) {
+            var originHost;
+            try {
+                originHost = new URL(origin).host;
+            } catch (e) {
+                return callback('Cross-domain connections are not allowed', false);
+            }
+            if (originHost.toLowerCase() !== String(req.headers.host).toLowerCase()) {
+                return callback('Cross-domain connections are not allowed', false);
+            }
         }
         callback(null, true);
     }
