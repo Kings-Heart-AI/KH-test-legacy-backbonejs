@@ -3,7 +3,8 @@ var express = require('express'),
     http = require('http'),
     morgan = require('morgan'),
     bodyParser = require('body-parser'),
-    io = require('socket.io'),
+    mongoose = require('mongoose'),
+    socketio = require('socket.io'),
     wine = require('./routes/wines');
 
 var app = express();
@@ -14,18 +15,18 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-var server = http.createServer(app);
-io = io.listen(server);
-
-
-io.configure(function () {
-    io.set('authorization', function (handshakeData, callback) {
-        if (handshakeData.xdomain) {
-            callback('Cross-domain connections are not allowed');
-        } else {
-            callback(null, true);
-        }
-    });
+// Reads the Mongo connection details from MONGODB_URI (set automatically by
+// Heroku/MongoLab), falling back to the historical localhost/winedb defaults
+// for local development.
+var mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/winedb';
+mongoose.connect(mongoUri).catch(function (err) {
+    console.error('MongoDB connection error: ' + err);
+});
+mongoose.connection.on('error', function (err) {
+    console.error('MongoDB connection error: ' + err);
+});
+mongoose.connection.once('open', function () {
+    console.log("Connected to '" + mongoose.connection.name + "' database");
 });
 
 app.get('/wines', wine.findAll);
@@ -34,26 +35,41 @@ app.post('/wines', wine.addWine);
 app.put('/wines/:id', wine.updateWine);
 app.delete('/wines/:id', wine.deleteWine);
 
-io.sockets.on('connection', function (socket) {
-
-    socket.on('message', function (message) {
-        console.log("Got message: " + message);
-        ip = socket.handshake.address.address;
-        url = message;
-        io.sockets.emit('pageview', { 'connections': Object.keys(io.connected).length, 'ip': '***.***.***.' + ip.substring(ip.lastIndexOf('.') + 1), 'url': url, 'xdomain': socket.handshake.xdomain, 'timestamp': new Date()});
-    });
-
-    socket.on('disconnect', function () {
-        console.log("Socket disconnected");
-        io.sockets.emit('pageview', { 'connections': Object.keys(io.connected).length});
-    });
-
-});
-
 // Express 4 error handler (must be defined last, with 4 args)
 app.use(function (err, req, res, next) {
     console.error(err.stack);
     res.status(500).send({ error: 'An error has occurred' });
+});
+
+var server = http.createServer(app);
+
+// socket.io 4.x wiring, attached to the Express 4 http.Server instance.
+// allowRequest re-implements the old io.set('authorization', ...) cross-domain
+// rejection: reject handshakes whose Origin header doesn't match this host.
+var io = socketio(server, {
+    allowRequest: function (req, callback) {
+        var origin = req.headers.origin;
+        if (origin && req.headers.host && origin.indexOf(req.headers.host) === -1) {
+            return callback('Cross-domain connections are not allowed', false);
+        }
+        callback(null, true);
+    }
+});
+
+io.on('connection', function (socket) {
+
+    socket.on('message', function (message) {
+        console.log("Got message: " + message);
+        var ip = socket.handshake.address;
+        var url = message;
+        io.emit('pageview', { 'connections': io.engine.clientsCount, 'ip': '***.***.***.' + ip.substring(ip.lastIndexOf('.') + 1), 'url': url, 'xdomain': !!socket.handshake.headers.origin, 'timestamp': new Date()});
+    });
+
+    socket.on('disconnect', function () {
+        console.log("Socket disconnected");
+        io.emit('pageview', { 'connections': io.engine.clientsCount });
+    });
+
 });
 
 server.listen(app.get('port'), function () {
