@@ -2,3 +2,5 @@
 /.idea
 Procfile
 .gitignore
+client/node_modules
+client/dist

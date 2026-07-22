@@ -1,16 +1,15 @@
 var express = require('express'),
     path = require('path'),
     http = require('http'),
+    morgan = require('morgan'),
     wine = require('./routes/wines');
 
 var app = express();
 
-app.configure(function () {
-    app.set('port', process.env.PORT || 3000);
-    app.use(express.logger('dev'));  /* 'default', 'short', 'tiny', 'dev' */
-    app.use(express.bodyParser()),
-    app.use(express.static(path.join(__dirname, 'public')));
-});
+app.set('port', process.env.PORT || 3000);
+app.use(morgan('dev'));  /* 'default', 'short', 'tiny', 'dev' */
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 app.get('/wines', wine.findAll);
 app.get('/wines/:id', wine.findById);

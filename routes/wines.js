@@ -1,95 +1,161 @@
-var mongo = require('mongodb');
+var mongodb = require('mongodb');
 
-var Server = mongo.Server,
-    Db = mongo.Db,
-    BSON = mongo.BSONPure;
+var MongoClient = mongodb.MongoClient,
+    ObjectId = mongodb.ObjectId;
 
-var server = new Server('localhost', 27017, {auto_reconnect: true});
-db = new Db('winedb', server, {safe: true});
+var uri = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/winedb';
 
-db.open(function(err, db) {
-    if(!err) {
-        console.log("Connected to 'winedb' database");
-        db.collection('wines', {safe:true}, function(err, collection) {
-            if (err) {
-                console.log("The 'wines' collection doesn't exist. Creating it with sample data...");
-                populateDB();
-            }
-        });
-    }
+console.log("Connecting to MongoDB at " + uri);
+
+var db;
+
+var ready = MongoClient.connect(uri).then(function (client) {
+    console.log("Connected to MongoDB at " + uri);
+    db = client.db();
+    return db.collection('wines').countDocuments().then(function (count) {
+        if (count === 0) {
+            console.log("The 'wines' collection is empty. Populating it with sample data...");
+            return populateDB();
+        }
+    });
+}).catch(function (err) {
+    console.log("Error connecting to MongoDB: " + err.message);
+    throw err;
 });
 
-exports.findById = function(req, res) {
-    var id = req.params.id;
-    console.log('Retrieving wine: ' + id);
-    db.collection('wines', function(err, collection) {
-        collection.findOne({'_id':new BSON.ObjectID(id)}, function(err, item) {
-            res.send(item);
-        });
-    });
-};
+// Exposed so entry points / tests can know when the DB connection attempt has settled.
+exports.ready = ready;
 
-exports.findAll = function(req, res) {
-    db.collection('wines', function(err, collection) {
-        collection.find().toArray(function(err, items) {
-            res.send(items);
-        });
-    });
-};
-
-exports.addWine = function(req, res) {
-    var wine = req.body;
-    console.log('Adding wine: ' + JSON.stringify(wine));
-    db.collection('wines', function(err, collection) {
-        collection.insert(wine, {safe:true}, function(err, result) {
-            if (err) {
-                res.send({'error':'An error has occurred'});
-            } else {
-                console.log('Success: ' + JSON.stringify(result[0]));
-                res.send(result[0]);
-            }
-        });
-    });
+function getCollection() {
+    if (!db) {
+        throw new Error('Not connected to the database yet');
+    }
+    return db.collection('wines');
 }
 
-exports.updateWine = function(req, res) {
+function toObjectId(id) {
+    try {
+        return new ObjectId(id);
+    } catch (err) {
+        return null;
+    }
+}
+
+var REQUIRED_FIELDS = {
+    name: 'You must enter a name',
+    grapes: 'You must enter a grape variety',
+    country: 'You must enter a country'
+};
+
+function validateWine(wine) {
+    var messages = {};
+    Object.keys(REQUIRED_FIELDS).forEach(function (field) {
+        var value = wine && wine[field];
+        if (!value || String(value).length === 0) {
+            messages[field] = REQUIRED_FIELDS[field];
+        }
+    });
+    return messages;
+}
+
+exports.findById = async function (req, res) {
+    var id = req.params.id;
+    console.log('Retrieving wine: ' + id);
+    var objectId = toObjectId(id);
+    if (!objectId) {
+        return res.status(404).send({error: 'Wine not found'});
+    }
+    try {
+        var item = await getCollection().findOne({'_id': objectId});
+        if (!item) {
+            return res.status(404).send({error: 'Wine not found'});
+        }
+        res.status(200).send(item);
+    } catch (err) {
+        console.log('Error retrieving wine: ' + err.message);
+        res.status(500).send({error: 'An error has occurred'});
+    }
+};
+
+exports.findAll = async function (req, res) {
+    try {
+        var items = await getCollection().find().toArray();
+        res.status(200).send(items);
+    } catch (err) {
+        console.log('Error retrieving wines: ' + err.message);
+        res.status(500).send({error: 'An error has occurred'});
+    }
+};
+
+exports.addWine = async function (req, res) {
+    var wine = req.body;
+    var messages = validateWine(wine);
+    if (Object.keys(messages).length > 0) {
+        return res.status(400).send({error: 'Validation failed', messages: messages});
+    }
+    console.log('Adding wine: ' + JSON.stringify(wine));
+    try {
+        var result = await getCollection().insertOne(wine);
+        var inserted = await getCollection().findOne({'_id': result.insertedId});
+        console.log('Success: ' + JSON.stringify(inserted));
+        res.status(201).send(inserted);
+    } catch (err) {
+        console.log('Error adding wine: ' + err.message);
+        res.status(500).send({error: 'An error has occurred'});
+    }
+};
+
+exports.updateWine = async function (req, res) {
     var id = req.params.id;
     var wine = req.body;
     delete wine._id;
+    var messages = validateWine(wine);
+    if (Object.keys(messages).length > 0) {
+        return res.status(400).send({error: 'Validation failed', messages: messages});
+    }
     console.log('Updating wine: ' + id);
     console.log(JSON.stringify(wine));
-    db.collection('wines', function(err, collection) {
-        collection.update({'_id':new BSON.ObjectID(id)}, wine, {safe:true}, function(err, result) {
-            if (err) {
-                console.log('Error updating wine: ' + err);
-                res.send({'error':'An error has occurred'});
-            } else {
-                console.log('' + result + ' document(s) updated');
-                res.send(wine);
-            }
-        });
-    });
-}
+    var objectId = toObjectId(id);
+    if (!objectId) {
+        return res.status(404).send({error: 'Wine not found'});
+    }
+    try {
+        var result = await getCollection().updateOne({'_id': objectId}, {$set: wine});
+        if (result.matchedCount === 0) {
+            return res.status(404).send({error: 'Wine not found'});
+        }
+        console.log(result.modifiedCount + ' document(s) updated');
+        res.status(200).send(wine);
+    } catch (err) {
+        console.log('Error updating wine: ' + err.message);
+        res.status(500).send({error: 'An error has occurred'});
+    }
+};
 
-exports.deleteWine = function(req, res) {
+exports.deleteWine = async function (req, res) {
     var id = req.params.id;
     console.log('Deleting wine: ' + id);
-    db.collection('wines', function(err, collection) {
-        collection.remove({'_id':new BSON.ObjectID(id)}, {safe:true}, function(err, result) {
-            if (err) {
-                res.send({'error':'An error has occurred - ' + err});
-            } else {
-                console.log('' + result + ' document(s) deleted');
-                res.send(req.body);
-            }
-        });
-    });
-}
+    var objectId = toObjectId(id);
+    if (!objectId) {
+        return res.status(404).send({error: 'Wine not found'});
+    }
+    try {
+        var result = await getCollection().deleteOne({'_id': objectId});
+        if (result.deletedCount === 0) {
+            return res.status(404).send({error: 'Wine not found'});
+        }
+        console.log(result.deletedCount + ' document(s) deleted');
+        res.status(200).send(req.body);
+    } catch (err) {
+        console.log('Error deleting wine: ' + err.message);
+        res.status(500).send({error: 'An error has occurred - ' + err.message});
+    }
+};
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 // Populate database with sample data -- Only used once: the first time the application is started.
 // You'd typically not find this code in a real-life app, since the database would already exist.
-var populateDB = function() {
+var populateDB = async function () {
 
     var wines = [
     {
@@ -309,8 +375,5 @@ var populateDB = function() {
         picture: "waterbrook.jpg"
     }];
 
-    db.collection('wines', function(err, collection) {
-        collection.insert(wines, {safe:true}, function(err, result) {});
-    });
-
+    return getCollection().insertMany(wines);
 };
