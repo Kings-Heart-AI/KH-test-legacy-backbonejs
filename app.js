@@ -1,17 +1,18 @@
 var express = require('express'),
     path = require('path'),
     http = require('http'),
+    morgan = require('morgan'),
+    bodyParser = require('body-parser'),
     io = require('socket.io'),
     wine = require('./routes/wines');
 
 var app = express();
 
-app.configure(function () {
-    app.set('port', process.env.PORT || 3000);
-    app.use(express.logger('dev'));
-    app.use(express.bodyParser())
-    app.use(express.static(path.join(__dirname, 'public')));
-});
+app.set('port', process.env.PORT || 3000);
+app.use(morgan('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 var server = http.createServer(app);
 io = io.listen(server);
@@ -25,10 +26,6 @@ io.configure(function () {
             callback(null, true);
         }
     });
-});
-
-server.listen(app.get('port'), function () {
-    console.log("Express server listening on port " + app.get('port'));
 });
 
 app.get('/wines', wine.findAll);
@@ -51,4 +48,14 @@ io.sockets.on('connection', function (socket) {
         io.sockets.emit('pageview', { 'connections': Object.keys(io.connected).length});
     });
 
+});
+
+// Express 4 error handler (must be defined last, with 4 args)
+app.use(function (err, req, res, next) {
+    console.error(err.stack);
+    res.status(500).send({ error: 'An error has occurred' });
+});
+
+server.listen(app.get('port'), function () {
+    console.log("Express server listening on port " + app.get('port'));
 });
