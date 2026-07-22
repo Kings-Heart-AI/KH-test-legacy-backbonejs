@@ -1,11 +1,21 @@
 var mongo = require('mongodb');
+var url = require('url');
 
 var Server = mongo.Server,
     Db = mongo.Db,
     BSON = mongo.BSONPure;
 
-var server = new Server('localhost', 27017, {auto_reconnect: true});
-db = new Db('winedb', server, {safe: true});
+// Reads the Mongo connection details from MONGODB_URI (set automatically by
+// Heroku/MongoLab), falling back to the historical localhost/winedb defaults
+// for local development.
+var mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/winedb';
+var parsedUri = url.parse(mongoUri);
+var mongoHost = parsedUri.hostname || 'localhost';
+var mongoPort = parsedUri.port ? parseInt(parsedUri.port, 10) : 27017;
+var mongoDbName = (parsedUri.pathname || '/winedb').replace(/^\//, '') || 'winedb';
+
+var server = new Server(mongoHost, mongoPort, {auto_reconnect: true});
+db = new Db(mongoDbName, server, {safe: true});
 
 db.open(function(err, db) {
     if(!err) {

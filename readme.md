@@ -27,6 +27,11 @@ The application is also hosted online. You can test it [here](http://nodecellar.
 
         $ heroku addons:add mongolab
 
+    This provisions the `MONGODB_URI` config var, which the app reads automatically
+    (via `process.env.MONGODB_URI`) to connect to your MongoLab database. No further
+    configuration is required. If `MONGODB_URI` is not set (e.g. running locally),
+    the app falls back to `mongodb://localhost:27017/winedb`.
+
 6. Upload the app to Heroku:
 
         $ git push heroku master
