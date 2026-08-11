@@ -80,6 +80,21 @@ node node_modules/mocha/bin/_mocha --reporter tap test/unit
   validation call anywhere in `routes/wines.js` — validation exists
   only in the browser, in `Wine.validateItem`/`validateAll`).
 
+## CI workflow: `test/ci/github-actions-test.yml`, not `.github/workflows/`
+
+The CI workflow definition for this suite lives at
+`test/ci/github-actions-test.yml` instead of the usual
+`.github/workflows/test.yml`. GitHub rejects pushes from this
+execution's credentials that create or modify files under
+`.github/workflows/` (that requires a separate `workflows` OAuth
+scope this run's token doesn't have) -- the push was tried and
+explicitly rejected with `refusing to allow a GitHub App to create or
+update workflow ".github/workflows/test.yml" without "workflows"
+permission`. The workflow content itself is complete and ready to run
+as-is; a human with the right permissions needs to copy this file to
+`.github/workflows/test.yml` (a plain file copy, no edits needed) to
+activate it on GitHub Actions.
+
 ## Known follow-up (not this run's scope)
 
 The active "Migrate Node Cellar to TypeScript" plan touches the same
