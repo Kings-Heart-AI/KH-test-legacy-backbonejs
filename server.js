@@ -12,6 +12,10 @@ app.configure(function () {
     app.use(express.static(path.join(__dirname, 'public')));
 });
 
+app.get('/healthz', function (req, res) {
+    res.send('OK');
+});
+
 app.get('/wines', wine.findAll);
 app.get('/wines/:id', wine.findById);
 app.post('/wines', wine.addWine);
