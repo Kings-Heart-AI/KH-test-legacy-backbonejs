@@ -29,7 +29,16 @@ jobs:
       # instance on port 27017, the same way it does for local dev.
       - name: Install mongod (legacy-wire-protocol-compatible server)
         run: |
-          curl -fsSL -o /tmp/mongodb.tgz https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-4.4.29.tgz
+          set -euo pipefail
+          MONGODB_URL="https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-4.4.29.tgz"
+          curl -fsSL -o /tmp/mongodb.tgz "$MONGODB_URL"
+          # Verify against the checksum MongoDB publishes alongside the
+          # release artifact itself, over HTTPS from the same origin,
+          # before extracting/using it -- catches corruption or a
+          # tampered artifact at a CDN edge (does not defend against a
+          # full compromise of fastdl.mongodb.org itself).
+          EXPECTED_SHA256=$(curl -fsSL "${MONGODB_URL}.sha256" | awk '{print $1}')
+          echo "${EXPECTED_SHA256}  /tmp/mongodb.tgz" | sha256sum -c -
           mkdir -p "$HOME/mongodb"
           tar -xzf /tmp/mongodb.tgz -C "$HOME/mongodb" --strip-components=1
           echo "$HOME/mongodb/bin" >> "$GITHUB_PATH"

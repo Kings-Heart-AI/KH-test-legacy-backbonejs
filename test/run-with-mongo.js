@@ -55,16 +55,22 @@ function isPortInUse(host, port, callback) {
     });
 }
 
-function waitForMongo(host, port, deadline, callback) {
+function waitForMongo(host, port, deadline, hasFailed, callback) {
+    if (hasFailed()) {
+        return callback(null);
+    }
     isPortInUse(host, port, function (up) {
         if (up) { return callback(null); }
+        if (hasFailed()) {
+            return callback(null);
+        }
         if (Date.now() > deadline) {
             return callback(new Error(
                 'Timed out waiting for mongod to accept connections on ' + host + ':' + port
             ));
         }
         setTimeout(function () {
-            waitForMongo(host, port, deadline, callback);
+            waitForMongo(host, port, deadline, hasFailed, callback);
         }, 250);
     });
 }
@@ -130,7 +136,9 @@ function main() {
             process.exitCode = exitCode;
         }
 
-        waitForMongo(MONGO_HOST, MONGO_PORT, Date.now() + READY_TIMEOUT_MS, function (err) {
+        waitForMongo(MONGO_HOST, MONGO_PORT, Date.now() + READY_TIMEOUT_MS, function () {
+            return mongodExited;
+        }, function (err) {
             if (mongodExited) {
                 console.error(
                     'mongod exited before becoming ready. See log at ' + logPath + ' if it still exists.'
