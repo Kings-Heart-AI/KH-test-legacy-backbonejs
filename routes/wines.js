@@ -1,13 +1,11 @@
 var mongo = require('mongodb');
 
-var Server = mongo.Server,
-    Db = mongo.Db,
-    BSON = mongo.BSONPure;
+var BSON = mongo.BSONPure;
 
-var server = new Server('localhost', 27017, {auto_reconnect: true});
-db = new Db('winedb', server, {safe: true});
+var mongoUrl = process.env.MONGODB_URI || process.env.MONGO_URL || 'mongodb://localhost:27017/winedb';
 
-db.open(function(err, db) {
+mongo.connect(mongoUrl, function(err, openedDb) {
+    db = openedDb;
     if(!err) {
         console.log("Connected to 'winedb' database");
         db.collection('wines', {safe:true}, function(err, collection) {
@@ -16,6 +14,8 @@ db.open(function(err, db) {
                 populateDB();
             }
         });
+    } else {
+        console.log("Error connecting to MongoDB: " + err);
     }
 });
 

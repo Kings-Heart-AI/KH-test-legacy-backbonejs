@@ -19,7 +19,6 @@
         "test:mocha": "node node_modules/mocha/bin/_mocha --reporter tap test/unit test/api"
     },
     "engines": {
-        "node": "0.8.4",
-        "npm": "1.1.49"
+        "node": ">=18.0.0"
     }
 }
