@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # routes/wines.js talks to Mongo through the mongodb@1.1.8 driver,
+      # which predates the OP_MSG wire protocol and only speaks the
+      # legacy OP_INSERT/OP_UPDATE/OP_DELETE/OP_QUERY opcodes -- opcodes
+      # MongoDB server removed in 5.1. We install a generic (distro
+      # independent) 4.4.x server binary rather than an apt package so
+      # this doesn't depend on which Mongo major version happens to be
+      # packaged for whatever Ubuntu release the runner image ships,
+      # and we deliberately do NOT start it here: test/run-with-mongo.js
+      # (invoked by "npm test") starts and owns its own throwaway
+      # instance on port 27017, the same way it does for local dev.
+      - name: Install mongod (legacy-wire-protocol-compatible server)
+        run: |
+          curl -fsSL -o /tmp/mongodb.tgz https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-4.4.29.tgz
+          mkdir -p "$HOME/mongodb"
+          tar -xzf /tmp/mongodb.tgz -C "$HOME/mongodb" --strip-components=1
+          echo "$HOME/mongodb/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
