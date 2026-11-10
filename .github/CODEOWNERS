@@ -1,8 +1,8 @@
 # Kingsheart Discovery test fixture.
-# The email exercises Workspace member matching. The handles exercise "Who is this?".
+# The email addresses exercise Workspace member matching. The handles exercise "Who is this?".
 
-/server.js         milancancarevic1@gmail.com
-/routes/           milancancarevic1@gmail.com
+/server.js         milancancarevic1@gmail.com milancancarevic1@kingsheart.ai
+/routes/           milancancarevic1@gmail.com milancancarevic1@kingsheart.ai
 
 /public/js/main.js  @kirill-galkin404
 /public/js/models/  @kirill-galkin404
