@@ -1,0 +1,11 @@
+# Kingsheart Discovery test fixture.
+# The email exercises Workspace member matching. The handles exercise "Who is this?".
+
+/server.js         milancancarevic1@gmail.com
+/routes/           milancancarevic1@gmail.com
+
+/public/js/main.js  @kirill-galkin404
+/public/js/models/  @kirill-galkin404
+
+/public/index.html  @filippantonovkh
+/public/js/views/   @filippantonovkh
